@@ -2,6 +2,7 @@ mod caster;
 mod framebuffer;
 mod maze;
 mod player;
+mod line;
 
 use minifb::{Key, Window, WindowOptions};
 use std::f32::consts::PI;
@@ -9,6 +10,7 @@ use std::time::Duration;
 
 use crate::caster::cast_ray;
 use crate::framebuffer::Framebuffer;
+use crate::line::line;
 use crate::maze::{load_maze, is_goal, Maze};
 use crate::player::{process_events, Player};
 
@@ -69,7 +71,11 @@ fn render_2d(framebuffer: &mut Framebuffer, maze: &Maze, player: &Player) {
     for i in 0..NUM_RAYS {
         let ray_fraction = i as f32 / (NUM_RAYS - 1) as f32; // de 0.0 a 1.0
         let angle = player.a - FOV / 2.0 + FOV * ray_fraction;
-        cast_ray(framebuffer, maze, player, angle, BLOCK_SIZE);
+
+        let distance = cast_ray(maze, player, angle, BLOCK_SIZE);
+        let end_x = player.pos.x + distance * angle.cos();
+        let end_y = player.pos.y + distance * angle.sin();
+        line(framebuffer, player.pos.x as usize, player.pos.y as usize, end_x as usize, end_y as usize);
     }
 }
 
