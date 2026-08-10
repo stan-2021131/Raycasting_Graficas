@@ -45,3 +45,56 @@ pub fn load_maze(filename: &str, block_size: usize) -> (Maze, Player) {
 
     (maze, player)
 }
+
+/// Obtiene la celda correspondiente a una posición del mundo.
+pub fn get_cell_at(
+    maze: &Maze,
+    x: f32,
+    y: f32,
+    block_size: usize,
+) -> Option<char> {
+    // Coordenadas negativas están fuera del mapa
+    if x < 0.0 || y < 0.0 {
+        return None;
+    }
+
+    // Convertir coordenadas del mundo a coordenadas del maze
+    let col = x as usize / block_size;
+    let row = y as usize / block_size;
+
+    maze.get(row)
+        .and_then(|line| line.get(col))
+        .copied()
+}
+
+/// Indica si una posición corresponde a una pared.
+pub fn is_wall(
+    maze: &Maze,
+    x: f32,
+    y: f32,
+    block_size: usize,
+) -> bool {
+    match get_cell_at(maze, x, y, block_size) {
+        Some('+' | '-' | '|') => true,
+
+        // Cualquier otra celda es caminable
+        Some(_) => false,
+
+        // Fuera del mapa se considera pared
+        None => true,
+    }
+}
+
+
+/// Indica si una posición corresponde a la meta.
+pub fn is_goal(
+    maze: &Maze,
+    x: f32,
+    y: f32,
+    block_size: usize,
+) -> bool {
+    matches!(
+        get_cell_at(maze, x, y, block_size),
+        Some('g' | 'G')
+    )
+}
