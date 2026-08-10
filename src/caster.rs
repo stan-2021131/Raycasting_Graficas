@@ -1,26 +1,27 @@
-use crate::maze::{is_wall, Maze};
+use crate::maze::{get_cell_at, Maze};
 use crate::player::Player;
 
-
-/**
- * Calcula la distancia desde la posición del jugador hasta la pared más cercana en la dirección `a`.
- */
 pub fn cast_ray(
     maze: &Maze,
     player: &Player,
-    a: f32,
+    angle: f32,
     block_size: usize,
-) -> f32 {
+) -> Option<(f32, char)> {
     let mut distance = 0.0;
 
     loop {
-        let x = (player.pos.x + distance * a.cos()) as usize;
-        let y = (player.pos.y + distance * a.sin()) as usize;
-
-        if is_wall(maze, x as f32, y as f32, block_size) {
-            return distance;
+        let x = player.pos.x + distance * angle.cos();
+        let y = player.pos.y + distance * angle.sin();
+        match get_cell_at(maze, x, y, block_size) {
+            Some(cell) if matches!(cell, '+' | '-' | '|' | 'g' | 'G') => {
+                return Some((distance, cell));
+            }
+            Some(_) => {
+                distance += 1.0;
+            }
+            None => {
+                return None;
+            }
         }
-
-        distance += 1.0;
     }
 }
