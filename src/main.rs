@@ -4,7 +4,7 @@ mod maze;
 mod player;
 mod line;
 
-use minifb::{Key, Window, WindowOptions};
+use minifb::{Key, KeyRepeat, Window, WindowOptions};
 use std::f32::consts::PI;
 use std::time::Duration;
 
@@ -72,10 +72,54 @@ fn render_2d(framebuffer: &mut Framebuffer, maze: &Maze, player: &Player) {
         let ray_fraction = i as f32 / (NUM_RAYS - 1) as f32; // de 0.0 a 1.0
         let angle = player.a - FOV / 2.0 + FOV * ray_fraction;
 
-        let distance = cast_ray(maze, player, angle, BLOCK_SIZE);
-        let end_x = player.pos.x + distance * angle.cos();
-        let end_y = player.pos.y + distance * angle.sin();
-        line(framebuffer, player.pos.x as usize, player.pos.y as usize, end_x as usize, end_y as usize);
+        if let Some((distance, _)) = cast_ray(maze, player, angle, BLOCK_SIZE) {
+            let end_x = player.pos.x + distance * angle.cos();
+            let end_y = player.pos.y + distance * angle.sin();
+            line(framebuffer, player.pos.x as usize, player.pos.y as usize, end_x as usize, end_y as usize);
+        }
+    }
+}
+
+fn render_3d(framebuffer: &mut Framebuffer, maze: &Maze, player: &Player) {
+    // Mitad de la altura de la pantalla para centrar la proyección.
+    let half_height = framebuffer.height as f32 / 2.0;
+
+    // Distancia de proyección, que define el campo de visión.
+    let projection_distance =
+        (framebuffer.width as f32 / 2.0)
+        / (FOV / 2.0).tan();
+
+    // Incremento angular entre rayos adyacentes.
+    let delta_beta = FOV / (framebuffer.width - 1) as f32;
+    
+        for i in 0..framebuffer.width {
+        // βi = -FOV/2 + Δβ * i
+        let beta =
+            -FOV / 2.0
+            + delta_beta * i as f32;
+
+        // θ = a + βi
+        let ray_angle =
+            player.a + beta;
+
+        if let Some((distance, wall)) = cast_ray(maze, player, ray_angle, BLOCK_SIZE) {
+            // Evita la distorsión de la "fish-eye" corrigiendo la distancia proyectada.
+            let corrected = distance * beta.cos();
+
+            // Altura de la pared en la pantalla.
+            let wall_height = (BLOCK_SIZE as f32 / corrected) * projection_distance;
+            // Coordenadas verticales de la porción de pared a dibujar.
+            let top =
+                (half_height - wall_height / 2.0).max(0.0);
+            let bottom =
+                (half_height + wall_height / 2.0).min(framebuffer.height as f32);
+
+            // Color de la pared golpeada
+            framebuffer.set_current_color(cell_color(wall));
+
+            // Dibujar la estaca
+            line(framebuffer, i, top as usize, i, bottom as usize);
+        }
     }
 }
 
@@ -85,6 +129,7 @@ fn main() {
     let framebuffer_width = 1300;
     let framebuffer_height = 900;
     let frame_delay = Duration::from_millis(16);
+    let mut mode_3d = false;
 
     let (maze, mut player) = load_maze("./maze.txt", BLOCK_SIZE);
 
@@ -100,6 +145,10 @@ fn main() {
     .unwrap();
 
     while window.is_open() && !window.is_key_down(Key::Escape) {
+        //cambiar modo de renderizado
+        if window.is_key_pressed(Key::M, KeyRepeat::No) {
+            mode_3d = !mode_3d;
+        }
         process_events(&window, &mut player, &maze, BLOCK_SIZE);
 
         // ¿el jugador llegó a la meta? Se traduce su posición en píxeles a la
@@ -111,7 +160,11 @@ fn main() {
 
         framebuffer.clear();
 
-        render_2d(&mut framebuffer, &maze, &player);
+        if mode_3d {
+            render_3d(&mut framebuffer, &maze, &player);
+        } else {
+            render_2d(&mut framebuffer, &maze, &player);
+        }
 
         window
             .update_with_buffer(&framebuffer.buffer, framebuffer_width, framebuffer_height)
