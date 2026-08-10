@@ -9,7 +9,7 @@ use std::time::Duration;
 
 use crate::caster::cast_ray;
 use crate::framebuffer::Framebuffer;
-use crate::maze::{load_maze, Maze};
+use crate::maze::{load_maze, is_goal, Maze};
 use crate::player::{process_events, Player};
 
 const BLOCK_SIZE: usize = 100;
@@ -94,13 +94,11 @@ fn main() {
     .unwrap();
 
     while window.is_open() && !window.is_key_down(Key::Escape) {
-        process_events(&window, &mut player);
+        process_events(&window, &mut player, &maze, BLOCK_SIZE);
 
         // ¿el jugador llegó a la meta? Se traduce su posición en píxeles a la
         // celda que ocupa y se revisa si esa celda es la marca `g`.
-        let i = player.pos.x as usize / BLOCK_SIZE;
-        let j = player.pos.y as usize / BLOCK_SIZE;
-        if maze.get(j).and_then(|row| row.get(i)) == Some(&'g') {
+        if is_goal(&maze, player.pos.x, player.pos.y, BLOCK_SIZE) {
             println!("¡Meta alcanzada! Fin del juego.");
             break;
         }
