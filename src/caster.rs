@@ -6,7 +6,7 @@ pub fn cast_ray(
     player: &Player,
     angle: f32,
     block_size: usize,
-) -> Option<(f32, char)> {
+) -> Option<(f32, char, f32, f32)> {
     let mut distance = 0.0;
 
     loop {
@@ -14,7 +14,7 @@ pub fn cast_ray(
         let y = player.pos.y + distance * angle.sin();
         match get_cell_at(maze, x, y, block_size) {
             Some(cell) if matches!(cell, '+' | '-' | '|' | 'g' | 'G') => {
-                return Some((distance, cell));
+                return Some((distance, cell, x, y));
             }
             Some(_) => {
                 distance += 1.0;
