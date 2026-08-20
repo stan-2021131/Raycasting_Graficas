@@ -12,6 +12,8 @@ pub const BLOCK_SIZE: usize = 100;
 pub const NUM_RAYS: usize = 5;
 pub const FOV: f32 = PI / 3.0;
 
+const MINIMAP_BLOCK_SIZE: usize = 15;
+
 fn cell_color(cell: char) -> u32 {
     match cell {
         '+' => 0x00AAFF, // columnas
@@ -22,15 +24,15 @@ fn cell_color(cell: char) -> u32 {
     }
 }
 
-fn draw_cell(framebuffer: &mut Framebuffer, xo: usize, yo: usize, cell: char) {
+fn draw_cell(framebuffer: &mut Framebuffer, xo: usize, yo: usize, block_size: usize, cell: char) {
     if cell == ' ' {
         return;
     }
 
     framebuffer.set_current_color(cell_color(cell));
 
-    for x in xo..xo + BLOCK_SIZE {
-        for y in yo..yo + BLOCK_SIZE {
+    for x in xo..xo + block_size {
+        for y in yo..yo + block_size {
             framebuffer.point(x, y);
         }
     }
@@ -39,7 +41,7 @@ fn draw_cell(framebuffer: &mut Framebuffer, xo: usize, yo: usize, cell: char) {
 pub fn render_2d(framebuffer: &mut Framebuffer, maze: &Maze, player: &Player) {
     for (row, line) in maze.iter().enumerate() {
         for (col, &cell) in line.iter().enumerate() {
-            draw_cell(framebuffer, col * BLOCK_SIZE, row * BLOCK_SIZE, cell);
+            draw_cell(framebuffer, col * BLOCK_SIZE, row * BLOCK_SIZE, BLOCK_SIZE, cell);
         }
     }
 
@@ -65,6 +67,38 @@ pub fn render_2d(framebuffer: &mut Framebuffer, maze: &Maze, player: &Player) {
         if let Some((_, _, hit_x, hit_y)) = cast_ray(maze, player, angle, BLOCK_SIZE) {
             line(framebuffer, player.pos.x as usize, player.pos.y as usize, hit_x as usize, hit_y as usize);
         }
+    }
+}
+
+pub fn render_minimap(framebuffer: &mut Framebuffer, maze: &Maze, player: &Player) {
+    // Calculamos el tamaño total del mapa para posicionarlo en la esquina superior derecha
+    let maze_cols = maze.first().map_or(0, |row| row.len());
+    let offset_x = framebuffer.width.saturating_sub(maze_cols * MINIMAP_BLOCK_SIZE + 20);
+    let offset_y = 20;
+
+    for (row, line) in maze.iter().enumerate() {
+        for (col, &cell) in line.iter().enumerate() {
+            draw_cell(framebuffer, offset_x + col * MINIMAP_BLOCK_SIZE, offset_y + row * MINIMAP_BLOCK_SIZE, MINIMAP_BLOCK_SIZE, cell);
+        }
+    }
+
+    framebuffer.set_current_color(0xFFFF00);
+    
+    let scale = MINIMAP_BLOCK_SIZE as f32 / BLOCK_SIZE as f32;
+    let px = offset_x + (player.pos.x * scale) as usize;
+    let py = offset_y + (player.pos.y * scale) as usize;
+
+    for x in px.saturating_sub(2)..=px + 2 {
+        for y in py.saturating_sub(2)..=py + 2 {
+            framebuffer.point(x, y);
+        }
+    }
+
+    // Un rayo para la dirección de vista del jugador en el minimapa
+    if let Some((_, _, hit_x, hit_y)) = cast_ray(maze, player, player.a, BLOCK_SIZE) {
+        let hx = offset_x + (hit_x * scale) as usize;
+        let hy = offset_y + (hit_y * scale) as usize;
+        line(framebuffer, px, py, hx, hy);
     }
 }
 
