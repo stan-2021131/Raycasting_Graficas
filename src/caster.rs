@@ -13,7 +13,7 @@ pub fn cast_ray(
         let x = player.pos.x + distance * angle.cos();
         let y = player.pos.y + distance * angle.sin();
         match get_cell_at(maze, x, y, block_size) {
-            Some(cell) if matches!(cell, '+' | '-' | '|' | 'g' | 'G') => {
+            Some(cell) if matches!(cell, '+' | '-' | '|') => {
                 return Some((distance, cell, x, y));
             }
             Some(_) => {
