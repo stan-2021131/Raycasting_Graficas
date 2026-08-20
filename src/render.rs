@@ -318,3 +318,19 @@ pub fn render_sprite(
         }
     }
 }
+
+pub fn render_image(framebuffer: &mut Framebuffer, texture: &Texture) {
+    for x in 0..framebuffer.width {
+        let u = x as f32 / framebuffer.width as f32;
+        let tx = ((u * texture.width as f32) as usize).min(texture.width - 1);
+
+        for y in 0..framebuffer.height {
+            let v = y as f32 / framebuffer.height as f32;
+            let ty = ((v * texture.height as f32) as usize).min(texture.height - 1);
+
+            let color = texture.get_pixel(tx, ty);
+            framebuffer.set_current_color(color);
+            framebuffer.point(x, y);
+        }
+    }
+}

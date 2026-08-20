@@ -13,8 +13,13 @@ use std::time::{Duration, Instant};
 use crate::framebuffer::Framebuffer;
 use crate::maze::{load_maze, is_goal};
 use crate::player::process_events;
-use crate::texture::{get_texture, load_textures};
-use crate::render::{render_2d, render_3d, render_minimap, render_sprite, BLOCK_SIZE};
+use crate::texture::{get_texture, load_textures, Texture};
+use crate::render::{render_2d, render_3d, render_minimap, render_sprite, render_image, BLOCK_SIZE};
+
+enum GameState {
+    Playing,
+    Completed,
+}
 
 fn main() {
     let window_width = 1000; // ancho de la ventana
@@ -25,11 +30,14 @@ fn main() {
     let mut mode_3d = true; // modo 2d o 3d
     let mut last_mouse_x: Option<f32> = None; // última posición X del mouse
         // carga el laberinto una vez al inicio
-    let (maze, mut player, goal) = load_maze("./maze.txt", BLOCK_SIZE);
+    let (mut maze, mut player, mut goal) = load_maze("./maze.txt", BLOCK_SIZE);
     
     // cargamos las texturas una vez al inicio
     let textures = load_textures();
     let goal_texture = get_texture(&textures, 'g');
+
+    // ESPACIO PARA RUTA DE IMAGEN DE VICTORIA
+    let victory_texture = Texture::new("./textures/screens/success.png");
 
     let mut framebuffer = Framebuffer::new(framebuffer_width, framebuffer_height);
     framebuffer.set_background_color(0x000000);
@@ -42,36 +50,58 @@ fn main() {
     )
     .unwrap();
 
+    let mut game_state = GameState::Playing;
+
     while window.is_open() && !window.is_key_down(Key::Escape) {
         // toma el tiempo al inicio del frame
         let frame_start = Instant::now();
 
-        //cambiar modo de renderizado
-        if window.is_key_pressed(Key::M, KeyRepeat::No) {
-            mode_3d = !mode_3d;
+        match game_state {
+            GameState::Playing => {
+                //cambiar modo de renderizado
+                if window.is_key_pressed(Key::M, KeyRepeat::No) {
+                    mode_3d = !mode_3d;
+                }
+                process_events(&mut window, &mut player, &maze, BLOCK_SIZE, &mut last_mouse_x);
+
+                // ¿el jugador llegó a la meta?
+                if is_goal(&maze, player.pos.x, player.pos.y, BLOCK_SIZE) {
+                    game_state = GameState::Completed;
+                } else {
+                    framebuffer.clear();
+
+                    if mode_3d {
+                        let z_buffer = render_3d(&mut framebuffer, &maze, &player, &textures);
+                        render_sprite(&mut framebuffer, &player, &goal, &goal_texture, &z_buffer);
+                        render_minimap(&mut framebuffer, &maze, &player);
+                    } else {
+                        render_2d(&mut framebuffer, &maze, &player);
+                    }
+
+                    window
+                        .update_with_buffer(&framebuffer.buffer, framebuffer_width, framebuffer_height)
+                        .unwrap();
+                }
+            }
+            GameState::Completed => {
+                // Dibujamos la imagen de fin del juego en toda la pantalla
+                render_image(&mut framebuffer, &victory_texture);
+                
+                // Si el jugador presiona Enter, reiniciamos el nivel
+                if window.is_key_pressed(Key::Enter, KeyRepeat::No) {
+                    let (new_maze, new_player, new_goal) = load_maze("./maze.txt", BLOCK_SIZE);
+                    maze = new_maze;
+                    player = new_player;
+                    goal = new_goal;
+                    game_state = GameState::Playing;
+                }
+
+                // Actualizamos la ventana para que refleje la imagen y registre teclas
+                window
+                    .update_with_buffer(&framebuffer.buffer, framebuffer_width, framebuffer_height)
+                    .unwrap();
+            }
         }
-        process_events(&mut window, &mut player, &maze, BLOCK_SIZE, &mut last_mouse_x);
-
-        // ¿el jugador llegó a la meta? Se traduce su posición en píxeles a la
-        // celda que ocupa y se revisa si esa celda es la marca `g`.
-        if is_goal(&maze, player.pos.x, player.pos.y, BLOCK_SIZE) {
-            println!("¡Meta alcanzada! Fin del juego.");
-            break;
-        }
-
-        framebuffer.clear();
-
-        if mode_3d {
-            let z_buffer = render_3d(&mut framebuffer, &maze, &player, &textures);
-            render_sprite(&mut framebuffer, &player, &goal, &goal_texture, &z_buffer);
-            render_minimap(&mut framebuffer, &maze, &player);
-        } else {
-            render_2d(&mut framebuffer, &maze, &player);
-        }
-
-        window
-            .update_with_buffer(&framebuffer.buffer, framebuffer_width, framebuffer_height)
-            .unwrap();
 
         // obtiene el tiempo transcurrido desde el inicio del frame
         let elapsed = frame_start.elapsed();
