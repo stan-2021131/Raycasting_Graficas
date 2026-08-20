@@ -8,7 +8,7 @@ mod sprite;
 mod render;
 
 use minifb::{Key, KeyRepeat, Window, WindowOptions};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use crate::framebuffer::Framebuffer;
 use crate::maze::{load_maze, is_goal};
@@ -21,7 +21,7 @@ fn main() {
     let window_height = 700; // alto de la ventana
     let framebuffer_width = 1300; // ancho del framebuffer
     let framebuffer_height = 900; // alto del framebuffer
-    let frame_delay = Duration::from_millis(16); // delay entre frames
+    let frame_delay = Duration::from_micros(66667); // target de 66.67ms para 15fps
     let mut mode_3d = true; // modo 2d o 3d
     let mut last_mouse_x: Option<f32> = None; // última posición X del mouse
         // carga el laberinto una vez al inicio
@@ -43,6 +43,9 @@ fn main() {
     .unwrap();
 
     while window.is_open() && !window.is_key_down(Key::Escape) {
+        // toma el tiempo al inicio del frame
+        let frame_start = Instant::now();
+
         //cambiar modo de renderizado
         if window.is_key_pressed(Key::M, KeyRepeat::No) {
             mode_3d = !mode_3d;
@@ -70,6 +73,18 @@ fn main() {
             .update_with_buffer(&framebuffer.buffer, framebuffer_width, framebuffer_height)
             .unwrap();
 
-        std::thread::sleep(frame_delay);
+        // obtiene el tiempo transcurrido desde el inicio del frame
+        let elapsed = frame_start.elapsed();
+                
+        // si el tiempo es menor a 66.67ms, hacemos sleep de la diferencia
+        if elapsed < frame_delay {
+            std::thread::sleep(frame_delay - elapsed);
+        }
+
+        let total_frame_time = frame_start.elapsed();
+
+        // muestra los FPS en la ventana
+        let fps = 1.0 / total_frame_time.as_secs_f32();
+        window.set_title(&format!("Maze Runner - {:.0} FPS", fps));
     }
 }
