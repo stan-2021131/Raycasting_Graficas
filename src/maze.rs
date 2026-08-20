@@ -49,7 +49,7 @@ pub fn load_maze(filename: &str, block_size: usize) -> (Maze, Player, Sprite) {
     let player = Player {
         pos: player_pos.unwrap_or_else(|| Vec2::new(0.0, 0.0)),
         // ángulo de vista inicial; el jugador podrá girarlo con el teclado.
-        a: PI / 3.0,
+        a: -PI / 2.0,
     };
 
     let pos_goal = goal_pos.unwrap_or_else(|| Vec2::new(0.0, 0.0));
