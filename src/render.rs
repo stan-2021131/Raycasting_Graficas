@@ -39,16 +39,25 @@ fn draw_cell(framebuffer: &mut Framebuffer, xo: usize, yo: usize, block_size: us
 }
 
 pub fn render_2d(framebuffer: &mut Framebuffer, maze: &Maze, player: &Player) {
+    let maze_cols = maze.first().map_or(0, |row| row.len());
+    let maze_rows = maze.len();
+
+    let block_size_x = if maze_cols > 0 { framebuffer.width / maze_cols } else { BLOCK_SIZE };
+    let block_size_y = if maze_rows > 0 { framebuffer.height / maze_rows } else { BLOCK_SIZE };
+    let draw_block_size = block_size_x.min(block_size_y);
+
+    let scale = draw_block_size as f32 / BLOCK_SIZE as f32;
+
     for (row, line) in maze.iter().enumerate() {
         for (col, &cell) in line.iter().enumerate() {
-            draw_cell(framebuffer, col * BLOCK_SIZE, row * BLOCK_SIZE, BLOCK_SIZE, cell);
+            draw_cell(framebuffer, col * draw_block_size, row * draw_block_size, draw_block_size, cell);
         }
     }
 
     framebuffer.set_current_color(0xFFFF00);
     
-    let px = player.pos.x as usize;
-    let py = player.pos.y as usize;
+    let px = (player.pos.x * scale) as usize;
+    let py = (player.pos.y * scale) as usize;
 
     for x in px.saturating_sub(3)..=px + 3 {
         for y in py.saturating_sub(3)..=py + 3 {
@@ -65,7 +74,9 @@ pub fn render_2d(framebuffer: &mut Framebuffer, maze: &Maze, player: &Player) {
         let angle = player.a - FOV / 2.0 + FOV * ray_fraction;
 
         if let Some((_, _, hit_x, hit_y)) = cast_ray(maze, player, angle, BLOCK_SIZE) {
-            line(framebuffer, player.pos.x as usize, player.pos.y as usize, hit_x as usize, hit_y as usize);
+            let hx = (hit_x * scale) as usize;
+            let hy = (hit_y * scale) as usize;
+            line(framebuffer, px, py, hx, hy);
         }
     }
 }
