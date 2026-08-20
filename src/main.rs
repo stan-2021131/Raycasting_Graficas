@@ -30,7 +30,7 @@ fn main() {
     let mut mode_3d = true; // modo 2d o 3d
     let mut last_mouse_x: Option<f32> = None; // última posición X del mouse
         // carga el laberinto una vez al inicio
-    let (mut maze, mut player, mut goal) = load_maze("./maze.txt", BLOCK_SIZE);
+    let (mut maze, mut player, mut goal) = load_maze("./levels/maze.txt", BLOCK_SIZE);
     
     // cargamos las texturas una vez al inicio
     let textures = load_textures();
@@ -89,7 +89,7 @@ fn main() {
                 
                 // Si el jugador presiona Enter, reiniciamos el nivel
                 if window.is_key_pressed(Key::Enter, KeyRepeat::No) {
-                    let (new_maze, new_player, new_goal) = load_maze("./maze.txt", BLOCK_SIZE);
+                    let (new_maze, new_player, new_goal) = load_maze("./levels/maze.txt", BLOCK_SIZE);
                     maze = new_maze;
                     player = new_player;
                     goal = new_goal;
