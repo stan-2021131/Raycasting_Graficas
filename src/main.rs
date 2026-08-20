@@ -4,6 +4,7 @@ mod maze;
 mod player;
 mod line;
 mod texture;
+mod sprite;
 
 use minifb::{Key, KeyRepeat, Window, WindowOptions};
 use std::f32::consts::PI;
@@ -14,7 +15,8 @@ use crate::framebuffer::Framebuffer;
 use crate::line::line;
 use crate::maze::{load_maze, is_goal, Maze};
 use crate::player::{process_events, Player};
-use crate::texture::{TextureCatalog, get_texture, load_textures};
+use crate::texture::{TextureCatalog, get_texture, load_textures, Texture};
+use crate::sprite::Sprite;
 
 const BLOCK_SIZE: usize = 100;
 
@@ -80,7 +82,10 @@ fn render_2d(framebuffer: &mut Framebuffer, maze: &Maze, player: &Player) {
     }
 }
 
-fn render_3d(framebuffer: &mut Framebuffer, maze: &Maze, player: &Player, textures: &TextureCatalog) {
+fn render_3d(framebuffer: &mut Framebuffer, maze: &Maze, player: &Player, textures: &TextureCatalog) -> Vec<f32> {
+    // buffer que almacena la distancia de cada pixel
+    let mut z_buffer = vec![f32::INFINITY; framebuffer.width];
+
     // Mitad de la altura de la pantalla para centrar la proyección.
     let half_height = framebuffer.height as f32 / 2.0;
 
@@ -105,6 +110,9 @@ fn render_3d(framebuffer: &mut Framebuffer, maze: &Maze, player: &Player, textur
         if let Some((distance, wall, hit_x, hit_y)) = cast_ray(maze, player, ray_angle, BLOCK_SIZE) {
             // Evita la distorsión de la "fish-eye" corrigiendo la distancia proyectada.
             let corrected = distance * beta.cos();
+
+            // Se almacena la distancia corregida en el buffer.
+            z_buffer[i] = corrected;
 
             // Altura de la pared en la pantalla.
             let wall_height = (BLOCK_SIZE as f32 / corrected) * projection_distance;
@@ -164,6 +172,131 @@ fn render_3d(framebuffer: &mut Framebuffer, maze: &Maze, player: &Player, textur
             }
         }
     }
+    z_buffer
+}
+
+fn render_sprite(
+    framebuffer: &mut Framebuffer,
+    player: &Player,
+    sprite: &Sprite,
+    texture: &Texture,
+    z_buffer: &[f32],
+) {
+    const SPRITE_SIZE: f32 = BLOCK_SIZE as f32;
+    const TRANSPARENT_COLOR: u32 = 0xD50BEB;
+
+    // Vector jugador -> sprite
+    // dx = sprite_x - jugador_x
+    // dy = sprite_y - jugador_y
+    let dx = sprite.pos.x - player.pos.x;
+    let dy = sprite.pos.y - player.pos.y;
+
+    // d = sqrt(dx² + dy²)
+    let distance = (dx * dx + dy * dy).sqrt();
+
+    // θ = atan2(dy, dx)
+    let angle = dy.atan2(dx);
+
+    // β = θ - a
+    let mut beta = angle - player.a;
+
+    // Normalizar β a [-PI, PI)
+    beta = (beta + PI).rem_euclid(2.0 * PI) - PI;
+
+    // Sprite detrás del jugador
+    if beta.abs() > PI / 2.0 {
+        return;
+    }
+
+    // Δβ = FOV / (W - 1)
+    let delta_beta = FOV / (framebuffer.width - 1) as f32;
+
+    // i_centro = (β + FOV/2) / Δβ
+    let screen_center = (beta + FOV / 2.0) / delta_beta;
+
+    // corregida = d * cos(β)
+    let corrected_distance = distance * beta.cos();
+
+    // Evitar distancia prácticamente nula
+    if corrected_distance <= 0.0 {
+        return;
+    }
+
+    // d_plano = (W/2) / tan(FOV/2)
+    let projection_distance = (framebuffer.width as f32 / 2.0) / (FOV / 2.0).tan();
+
+    // lado =
+    // (SPRITE_SIZE / corregida) * d_plano
+    let sprite_size = (SPRITE_SIZE / corrected_distance) * projection_distance;
+
+    // Horizonte = H/2
+    let horizon = framebuffer.height as f32 / 2.0;
+
+    // Orillas reales del sprite
+    let left = screen_center - sprite_size / 2.0;
+
+    let right = screen_center + sprite_size / 2.0;
+
+    let top = horizon - sprite_size / 2.0;
+
+    let bottom = horizon + sprite_size / 2.0;
+
+    // Si el rectángulo entero quedó fuera
+    if right < 0.0
+        || left >= framebuffer.width as f32
+        || bottom < 0.0
+        || top >= framebuffer.height as f32
+    {
+        return;
+    }
+
+    // Recorte únicamente para pintar
+    let draw_left = left.max(0.0) as usize;
+
+    let draw_right = right.min(framebuffer.width as f32) as usize;
+
+    let draw_top = top.max(0.0) as usize;
+
+    let draw_bottom = bottom.min(framebuffer.height as f32) as usize;
+        bottom.min(framebuffer.height as f32) as usize;
+
+    // Recorrer el rectángulo del sprite
+    for x in draw_left..draw_right {
+
+        // Prueba de profundidad:
+        // si la pared está más cerca, esta
+        // columna del sprite queda oculta.
+        if corrected_distance >= z_buffer[x] {
+            continue;
+        }
+
+        // u = (x - izquierda) / lado
+        let u = (x as f32 - left) / sprite_size;
+
+        // tx = floor(u * Tw)
+        let tx = ((u * texture.width as f32) as usize)
+                .min(texture.width - 1);
+
+        for y in draw_top..draw_bottom {
+
+            // v = (y - arriba) / lado
+            let v = (y as f32 - top) / sprite_size;
+
+            // ty = floor(v * Th)
+            let ty = ((v * texture.height as f32) as usize).min(texture.height - 1);
+
+            // Obtener texel
+            let color = texture.get_pixel(tx, ty);
+
+            // Color clave = transparencia
+            if color == TRANSPARENT_COLOR {
+                continue;
+            }
+
+            framebuffer.set_current_color(color);
+            framebuffer.point(x, y);
+        }
+    }
 }
 
 fn main() {
@@ -175,10 +308,11 @@ fn main() {
     let mut mode_3d = false; // modo 2d o 3d
     let mut last_mouse_x: Option<f32> = None; // última posición X del mouse
         // carga el laberinto una vez al inicio
-    let (maze, mut player) = load_maze("./maze.txt", BLOCK_SIZE);
+    let (maze, mut player, goal) = load_maze("./maze.txt", BLOCK_SIZE);
     
     // cargamos las texturas una vez al inicio
     let textures = load_textures();
+    let goal_texture = get_texture(&textures, 'g');
 
     let mut framebuffer = Framebuffer::new(framebuffer_width, framebuffer_height);
     framebuffer.set_background_color(0x000000);
@@ -208,7 +342,8 @@ fn main() {
         framebuffer.clear();
 
         if mode_3d {
-            render_3d(&mut framebuffer, &maze, &player, &textures);
+            let z_buffer = render_3d(&mut framebuffer, &maze, &player, &textures);
+            render_sprite(&mut framebuffer, &player, &goal, &goal_texture, &z_buffer);
         } else {
             render_2d(&mut framebuffer, &maze, &player);
         }
