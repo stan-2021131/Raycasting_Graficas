@@ -58,7 +58,7 @@ pub fn load_textures() -> TextureCatalog {
     );
     textures.insert(
         'g',
-        Texture::new("./textures/wall.png"),
+        Texture::new("./textures/goal.png"),
     );
 
     textures
