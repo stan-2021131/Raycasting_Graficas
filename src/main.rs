@@ -45,7 +45,11 @@ fn main() {
 
     // carga de texturas una sola vez.
     let textures = load_textures();
-    let goal_texture = get_texture(&textures, 'g');
+    
+    // texturas animadas del portal (placeholders)
+    let portal_tex_1 = Texture::new("./textures/goal.png");
+    let portal_tex_2 = Texture::new("./textures/goal_2.png");
+    let portal_tex_3 = Texture::new("./textures/goal_3.png");
     
     // texturas de los zombies (placeholders)
     let zombie_tex_1 = Texture::new("./textures/zombie.png");
@@ -194,10 +198,19 @@ fn main() {
 
                     if mode_3d {
                         let z_buffer = render_3d(&mut framebuffer, &maze, &player, &textures);
-                        render_sprite(&mut framebuffer, &player, &goal, &goal_texture, &z_buffer);
+                        
+                        let time_ms = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis();
+                        
+                        // Renderizar portal animado
+                        let portal_frame = (time_ms / 300) % 3;
+                        let current_portal_tex = match portal_frame {
+                            0 => &portal_tex_1,
+                            1 => &portal_tex_2,
+                            _ => &portal_tex_3,
+                        };
+                        render_sprite(&mut framebuffer, &player, &goal, current_portal_tex, &z_buffer);
                         
                         // Renderizar enemigos
-                        let time_ms = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis();
                         for enemy in &enemies {
                             let frame = ((time_ms + enemy.animation_offset) / 300) % 2;
                             let tex = if frame == 0 { &zombie_tex_1 } else { &zombie_tex_2 };

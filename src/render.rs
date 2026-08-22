@@ -16,9 +16,9 @@ const MINIMAP_BLOCK_SIZE: usize = 15;
 
 fn cell_color(cell: char) -> u32 {
     match cell {
-        '+' => 0x00AAFF, // columnas
-        '-' => 0xFF5555, // paredes horizontales
-        '|' => 0xFF5555, // paredes verticales
+        '+' => 0x611707, // columnas
+        '-' => 0x611707, // paredes horizontales
+        '|' => 0x611707, // paredes verticales
         'g' | 'G' => 0x00FF00, // meta
         _ => 0x000000,   // cualquier otra cosa
     }
