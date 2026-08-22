@@ -2,11 +2,8 @@
 
 ## Video Demostrativo del Juego
 
-<div align="center">
 
-<video src="./demo/demo.mp4"></video>
-
-</div>
+[![Ver Video](./demo/preview.png)](./demo/demo.mp4)
 
 ---
 
