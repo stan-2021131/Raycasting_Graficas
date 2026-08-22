@@ -3,7 +3,7 @@
 ## Video Demostrativo del Juego
 
 
-[![Ver Video](./demo/preview.png)](./demo/demo.mp4)
+[![Ver Video](./demo/preview.png)](https://youtu.be/Y5GbVXse-No)
 
 ---
 
