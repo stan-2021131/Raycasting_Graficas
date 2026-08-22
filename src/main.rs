@@ -8,6 +8,7 @@ mod sprite;
 mod render;
 mod sound;
 mod enemy;
+mod time;
 
 use minifb::{Key, KeyRepeat, Window, WindowOptions};
 use std::time::{Duration, Instant};
@@ -20,6 +21,7 @@ use crate::sound::AudioPlayer;
 use crate::texture::{get_texture, load_textures, Texture};
 use crate::enemy::check_collision;
 use crate::sprite::Sprite;
+use crate::time::LevelTimer;
 
 enum GameState {
     Menu(usize),
@@ -71,6 +73,23 @@ fn main() {
     ];
     let controls_texture = Texture::new("./textures/screens/controls_1.png");
 
+    // texturas de números para el temporizador (0-9 y dos puntos :)
+    let number_textures = [
+        Texture::new("./textures/numbers/0.png"),
+        Texture::new("./textures/numbers/1.png"),
+        Texture::new("./textures/numbers/2.png"),
+        Texture::new("./textures/numbers/3.png"),
+        Texture::new("./textures/numbers/4.png"),
+        Texture::new("./textures/numbers/5.png"),
+        Texture::new("./textures/numbers/6.png"),
+        Texture::new("./textures/numbers/7.png"),
+        Texture::new("./textures/numbers/8.png"),
+        Texture::new("./textures/numbers/9.png"),
+        Texture::new("./textures/numbers/colon.png"),
+    ];
+
+    let mut level_timer = LevelTimer::new(60);
+
     let mut framebuffer = Framebuffer::new(framebuffer_width, framebuffer_height);
     framebuffer.set_background_color(0x000000);
 
@@ -106,11 +125,12 @@ fn main() {
                 if window.is_key_pressed(Key::Enter, KeyRepeat::No) {
                     match *selected {
                         0 | 1 | 2 => {
-                            current_level_path = match *selected {
-                                0 => String::from("./levels/maze.txt"),
-                                1 => String::from("./levels/maze_2.txt"),
-                                _ => String::from("./levels/maze_3.txt"),
+                            let (path, time) = match *selected {
+                                0 => (String::from("./levels/maze.txt"), 60),
+                                1 => (String::from("./levels/maze_2.txt"), 90),
+                                _ => (String::from("./levels/maze_3.txt"), 105),
                             };
+                            current_level_path = path;
 
                             let (new_maze, new_player, new_goal, new_enemies) =
                                 load_maze(&current_level_path, BLOCK_SIZE);
@@ -119,6 +139,9 @@ fn main() {
                             goal = new_goal;
                             enemies = new_enemies;
                             player_last_cell = None;
+
+                            level_timer = LevelTimer::new(time);
+                            level_timer.reset_update_time();
 
                             audio_player.start_music();
                             game_state = GameState::Playing;
@@ -152,6 +175,9 @@ fn main() {
             GameState::Playing => {
                 // Si ya entramos una vez al laberinto, solo reanudamos la musica; no la recargamos.
                 audio_player.start_music();
+                
+                // Actualizamos el temporizador
+                level_timer.update();
 
                 if window.is_key_pressed(Key::M, KeyRepeat::No) {
                     mode_3d = !mode_3d;
@@ -187,7 +213,7 @@ fn main() {
                     }
                 }
 
-                if collided {
+                if collided || level_timer.is_finished() {
                     audio_player.stop_music();
                     game_state = GameState::Lost;
                 } else if is_goal(&maze, player.pos.x, player.pos.y, BLOCK_SIZE) {
@@ -222,6 +248,9 @@ fn main() {
                     } else {
                         render_2d(&mut framebuffer, &maze, &player);
                     }
+                    
+                    // Renderizamos el temporizador por encima de todo escalado (x10 para que los PNG 3x5 se vean de 30x50)
+                    level_timer.render_time(&mut framebuffer, &number_textures, framebuffer_width / 2, 20, 10);
 
                     window
                         .update_with_buffer(&framebuffer.buffer, framebuffer_width, framebuffer_height)
@@ -262,6 +291,6 @@ fn main() {
 
         let total_frame_time = frame_start.elapsed();
         let fps = 1.0 / total_frame_time.as_secs_f32();
-        window.set_title(&format!("Maze Runner - {:.0} FPS", fps));
+        window.set_title(&format!("00:00 - {:.0} FPS", fps));
     }
 }
