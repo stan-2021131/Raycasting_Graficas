@@ -9,7 +9,11 @@ use crate::player::Player;
 
 pub type Maze = Vec<Vec<char>>;
 
-pub fn load_maze(filename: &str, block_size: usize) -> (Maze, Player, Sprite) {
+use crate::enemy::Enemy;
+
+const ENEMY_SPEED: f32 = 7.5; // 75% de la velocidad del jugador (10.0)
+
+pub fn load_maze(filename: &str, block_size: usize) -> (Maze, Player, Sprite, Vec<Enemy>) {
     let file = File::open(filename).expect("no se pudo abrir el archivo del laberinto");
 
     let reader = BufReader::new(file);
@@ -18,6 +22,7 @@ pub fn load_maze(filename: &str, block_size: usize) -> (Maze, Player, Sprite) {
 
     let mut player_pos: Option<Vec2> = None;
     let mut goal_pos: Option<Vec2> = None;
+    let mut enemies: Vec<Enemy> = Vec::new();
 
     for (row, line) in reader.lines().enumerate() {
         let line = line.expect("no se pudo leer una línea del laberinto");
@@ -37,6 +42,13 @@ pub fn load_maze(filename: &str, block_size: usize) -> (Maze, Player, Sprite) {
                 goal_pos = Some(Vec2::new(x as f32, y as f32));
 
                 cells.push(character);
+            } else if character == 'z' || character == 'Z' {
+                let x = col * block_size + block_size / 2;
+                let y = row * block_size + block_size / 2;
+                enemies.push(Enemy::new(x as f32, y as f32, ENEMY_SPEED));
+                
+                // Las casillas de inicio del enemigo son caminables
+                cells.push(' ');
             }
             else {
                 cells.push(character);
@@ -55,7 +67,7 @@ pub fn load_maze(filename: &str, block_size: usize) -> (Maze, Player, Sprite) {
     let pos_goal = goal_pos.unwrap_or_else(|| Vec2::new(0.0, 0.0));
     let goal = Sprite::new(pos_goal.x, pos_goal.y);
 
-    (maze, player, goal)
+    (maze, player, goal, enemies)
 }
 
 /// Obtiene la celda correspondiente a una posición del mundo.

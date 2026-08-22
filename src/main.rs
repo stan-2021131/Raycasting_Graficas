@@ -7,6 +7,7 @@ mod texture;
 mod sprite;
 mod render;
 mod sound;
+mod enemy;
 
 use minifb::{Key, KeyRepeat, Window, WindowOptions};
 use std::time::{Duration, Instant};
@@ -17,12 +18,15 @@ use crate::player::process_events;
 use crate::render::{render_2d, render_3d, render_image, render_minimap, render_sprite, BLOCK_SIZE};
 use crate::sound::AudioPlayer;
 use crate::texture::{get_texture, load_textures, Texture};
+use crate::enemy::check_collision;
+use crate::sprite::Sprite;
 
 enum GameState {
     Menu(usize),
     Controls,
     Playing,
     Completed,
+    Lost,
 }
 
 fn main() {
@@ -36,11 +40,19 @@ fn main() {
     let mut current_level_path = String::from("./levels/maze.txt");
 
     // carga del laberinto una vez al inicio.
-    let (mut maze, mut player, mut goal) = load_maze(&current_level_path, BLOCK_SIZE);
+    let (mut maze, mut player, mut goal, mut enemies) = load_maze(&current_level_path, BLOCK_SIZE);
+    let mut player_last_cell: Option<(usize, usize)> = None;
 
     // carga de texturas una sola vez.
     let textures = load_textures();
     let goal_texture = get_texture(&textures, 'g');
+    
+    // texturas de los zombies (placeholders)
+    let zombie_tex_1 = Texture::new("./textures/zombie.png");
+    let zombie_tex_2 = Texture::new("./textures/zombie_1.png");
+    
+    // textura para cuando pierdes
+    let lost_texture = Texture::new("./textures/screens/failed.png");
 
     // carga del audio al iniciar el programa.
     let mut audio_player = AudioPlayer::new();
@@ -96,11 +108,13 @@ fn main() {
                                 _ => String::from("./levels/maze_3.txt"),
                             };
 
-                            let (new_maze, new_player, new_goal) =
+                            let (new_maze, new_player, new_goal, new_enemies) =
                                 load_maze(&current_level_path, BLOCK_SIZE);
                             maze = new_maze;
                             player = new_player;
                             goal = new_goal;
+                            enemies = new_enemies;
+                            player_last_cell = None;
 
                             audio_player.start_music();
                             game_state = GameState::Playing;
@@ -139,6 +153,19 @@ fn main() {
                     mode_3d = !mode_3d;
                 }
 
+                // Recalcular A* si el jugador cambia de celda
+                let current_player_cell = (
+                    (player.pos.x / BLOCK_SIZE as f32) as usize,
+                    (player.pos.y / BLOCK_SIZE as f32) as usize,
+                );
+
+                if player_last_cell != Some(current_player_cell) {
+                    player_last_cell = Some(current_player_cell);
+                    for enemy in &mut enemies {
+                        enemy.recalculate_path(&maze, BLOCK_SIZE, &player);
+                    }
+                }
+
                 // Comparamos la posicion antes y despues del input para saber si hubo desplazamiento real.
                 let previous_position = player.pos;
                 process_events(&mut window, &mut player, &maze, BLOCK_SIZE, &mut last_mouse_x);
@@ -147,7 +174,19 @@ fn main() {
                     audio_player.try_play_footstep();
                 }
 
-                if is_goal(&maze, player.pos.x, player.pos.y, BLOCK_SIZE) {
+                // Mover enemigos y revisar colisiones
+                let mut collided = false;
+                for enemy in &mut enemies {
+                    enemy.update();
+                    if check_collision(enemy, &player) {
+                        collided = true;
+                    }
+                }
+
+                if collided {
+                    audio_player.stop_music();
+                    game_state = GameState::Lost;
+                } else if is_goal(&maze, player.pos.x, player.pos.y, BLOCK_SIZE) {
                     audio_player.stop_music();
                     game_state = GameState::Completed;
                 } else {
@@ -156,6 +195,16 @@ fn main() {
                     if mode_3d {
                         let z_buffer = render_3d(&mut framebuffer, &maze, &player, &textures);
                         render_sprite(&mut framebuffer, &player, &goal, &goal_texture, &z_buffer);
+                        
+                        // Renderizar enemigos
+                        let time_ms = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis();
+                        for enemy in &enemies {
+                            let frame = ((time_ms + enemy.animation_offset) / 300) % 2;
+                            let tex = if frame == 0 { &zombie_tex_1 } else { &zombie_tex_2 };
+                            let enemy_sprite = Sprite::new(enemy.pos.x, enemy.pos.y);
+                            render_sprite(&mut framebuffer, &player, &enemy_sprite, tex, &z_buffer);
+                        }
+                        
                         render_minimap(&mut framebuffer, &maze, &player);
                     } else {
                         render_2d(&mut framebuffer, &maze, &player);
@@ -169,6 +218,18 @@ fn main() {
             GameState::Completed => {
                 audio_player.stop_music();
                 render_image(&mut framebuffer, &victory_texture);
+
+                if window.is_key_pressed(Key::Enter, KeyRepeat::No) {
+                    game_state = GameState::Menu(0);
+                }
+
+                window
+                    .update_with_buffer(&framebuffer.buffer, framebuffer_width, framebuffer_height)
+                    .unwrap();
+            }
+            GameState::Lost => {
+                audio_player.stop_music();
+                render_image(&mut framebuffer, &lost_texture);
 
                 if window.is_key_pressed(Key::Enter, KeyRepeat::No) {
                     game_state = GameState::Menu(0);

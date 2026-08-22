@@ -120,8 +120,8 @@ pub fn render_3d(framebuffer: &mut Framebuffer, maze: &Maze, player: &Player, te
     let horizon_y = half_height as usize;
 
     // Colores para el cielo (arriba) y el suelo (abajo)
-    let ceiling_color = 0x611300;
-    let floor_color = 0x332B2A;  
+    let ceiling_color = 0x451206;
+    let floor_color = 0x1A1615;  
 
     let projection_distance = (framebuffer.width as f32 / 2.0) / (FOV / 2.0).tan();
     let delta_beta = FOV / (framebuffer.width - 1) as f32;
