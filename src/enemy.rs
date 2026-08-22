@@ -12,8 +12,6 @@ const ENEMY_RADIUS: f32 = 20.0;
 pub struct Enemy {
     /// Posición en coordenadas de mundo.
     pub pos: Vec2,
-    /// Posición inicial al cargar el nivel (para resetear).
-    pub initial_pos: Vec2,
     /// Velocidad de movimiento por frame.
     pub speed: f32,
     /// Ruta calculada por A*, como lista de puntos de mundo a los que dirigirse.
@@ -48,19 +46,11 @@ impl Enemy {
     pub fn new(x: f32, y: f32, speed: f32) -> Self {
         Self {
             pos: Vec2::new(x, y),
-            initial_pos: Vec2::new(x, y),
             speed,
             path: Vec::new(),
             path_index: 0,
             animation_offset: (x as u128 + y as u128) % 1000, // Pseudo-aleatorio según pos inicial
         }
-    }
-
-    /// Resetea al enemigo a su posición inicial, usado al reiniciar nivel.
-    pub fn reset(&mut self) {
-        self.pos = self.initial_pos;
-        self.path.clear();
-        self.path_index = 0;
     }
 
     /// Mueve al enemigo un paso a través de su ruta calculada.
@@ -177,7 +167,7 @@ fn a_star_path(maze: &Maze, block_size: usize, start: (usize, usize), goal: (usi
 
 /// Heurística Manhattan para A*
 fn heuristic(a: (usize, usize), b: (usize, usize)) -> i32 {
-    ((a.0 as i32 - b.0 as i32).abs() + (a.1 as i32 - b.1 as i32).abs())
+    (a.0 as i32 - b.0 as i32).abs() + (a.1 as i32 - b.1 as i32).abs()
 }
 
 /// Reconstruye el camino desde `goal` al `start` siguiendo los registros `came_from`.

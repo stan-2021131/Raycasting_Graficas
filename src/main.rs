@@ -18,7 +18,7 @@ use crate::maze::{is_goal, load_maze};
 use crate::player::process_events;
 use crate::render::{render_2d, render_3d, render_image, render_minimap, render_sprite, BLOCK_SIZE};
 use crate::sound::AudioPlayer;
-use crate::texture::{get_texture, load_textures, Texture};
+use crate::texture::{load_textures, Texture};
 use crate::enemy::check_collision;
 use crate::sprite::Sprite;
 use crate::time::LevelTimer;
