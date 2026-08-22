@@ -114,58 +114,44 @@ pub fn render_minimap(framebuffer: &mut Framebuffer, maze: &Maze, player: &Playe
 }
 
 pub fn render_3d(framebuffer: &mut Framebuffer, maze: &Maze, player: &Player, textures: &TextureCatalog) -> Vec<f32> {
-    // buffer que almacena la distancia de cada pixel
     let mut z_buffer = vec![f32::INFINITY; framebuffer.width];
 
-    // Mitad de la altura de la pantalla para centrar la proyección.
     let half_height = framebuffer.height as f32 / 2.0;
+    let horizon_y = half_height as usize;
 
-    // Distancia de proyección, que define el campo de visión.
-    let projection_distance =
-        (framebuffer.width as f32 / 2.0)
-        / (FOV / 2.0).tan();
+    // Colores para el cielo (arriba) y el suelo (abajo)
+    let ceiling_color = 0x611300;
+    let floor_color = 0x332B2A;  
 
-    // Incremento angular entre rayos adyacentes.
+    let projection_distance = (framebuffer.width as f32 / 2.0) / (FOV / 2.0).tan();
     let delta_beta = FOV / (framebuffer.width - 1) as f32;
-    
-        for i in 0..framebuffer.width {
-        // βi = -FOV/2 + Δβ * i
-        let beta =
-            -FOV / 2.0
-            + delta_beta * i as f32;
 
-        // θ = a + βi
-        let ray_angle =
-            player.a + beta;
+    for i in 0..framebuffer.width {
+        let beta = -FOV / 2.0 + delta_beta * i as f32;
+        let ray_angle = player.a + beta;
 
         if let Some((distance, wall, hit_x, hit_y)) = cast_ray(maze, player, ray_angle, BLOCK_SIZE) {
-            // Evita la distorsión de la "fish-eye" corrigiendo la distancia proyectada.
             let corrected = distance * beta.cos();
-
-            // Se almacena la distancia corregida en el buffer.
             z_buffer[i] = corrected;
 
-            // Altura de la pared en la pantalla.
             let wall_height = (BLOCK_SIZE as f32 / corrected) * projection_distance;
-            // Orillas reales de la pared.
-            let real_top =
-                half_height - wall_height / 2.0;
-            let real_bottom =
-                half_height + wall_height / 2.0;
+            let real_top = half_height - wall_height / 2.0;
+            let real_bottom = half_height + wall_height / 2.0;
 
-            // Orillas que se dibujarán.
-            let top = real_top.max(0.0);
-            let bottom = real_bottom.min(framebuffer.height as f32);
+            let top = (real_top.max(0.0) as usize).min(framebuffer.height);
+            let bottom = (real_bottom.min(framebuffer.height as f32) as usize).max(top);
 
-            // Posicion dentro del bloque
+            // 1. Techo / Cielo (desde la parte superior hasta donde empieza la pared)
+            framebuffer.set_current_color(ceiling_color);
+            for y in 0..top {
+                framebuffer.point(i, y);
+            }
+
+            // 2. Pared
             let local_x = hit_x % BLOCK_SIZE as f32;
             let local_y = hit_y % BLOCK_SIZE as f32;
-
-            // Distancia desde donde entra al bloque
             let bx = local_x.min(BLOCK_SIZE as f32 - local_x);
             let by = local_y.min(BLOCK_SIZE as f32 - local_y);
-
-            // si bx < by, la pared es vertical
             let is_vertical = bx < by;
 
             let u = if is_vertical {
@@ -174,31 +160,32 @@ pub fn render_3d(framebuffer: &mut Framebuffer, maze: &Maze, player: &Player, te
                 local_x / BLOCK_SIZE as f32
             };
 
-            // Obtener la textura correspondiente a la celda golpeada.
             let tex = get_texture(textures, wall);
+            let tx = ((u * tex.width as f32) as usize).min(tex.width - 1);
 
-            let tx =
-                ((u * tex.width as f32) as usize)
-                .min(tex.width - 1);
-            
-            // Recorrer verticalmente la estaca
-            for y in top as usize..bottom as usize {
-                // v = (y - arriba) / altura
-                let v =
-                    (y as f32 - real_top)
-                    / wall_height;
+            for y in top..bottom {
+                let v = (y as f32 - real_top) / wall_height;
+                let ty = ((v * tex.height as f32) as usize).min(tex.height - 1);
+                let color = tex.get_pixel(tx, ty);
 
-                // v → ty
-                let ty =
-                    ((v * tex.height as f32) as usize)
-                        .min(tex.height - 1);
-
-                // Leer texel
-                let color =
-                    tex.get_pixel(tx, ty);
-
-                // Dibujar texel
                 framebuffer.set_current_color(color);
+                framebuffer.point(i, y);
+            }
+
+            // 3. Suelo (desde donde termina la pared hasta el fondo de la pantalla)
+            framebuffer.set_current_color(floor_color);
+            for y in bottom..framebuffer.height {
+                framebuffer.point(i, y);
+            }
+        } else {
+            // Si el rayo no golpea nada, pintar directamente cielo y suelo divididos por el horizonte
+            framebuffer.set_current_color(ceiling_color);
+            for y in 0..horizon_y {
+                framebuffer.point(i, y);
+            }
+
+            framebuffer.set_current_color(floor_color);
+            for y in horizon_y..framebuffer.height {
                 framebuffer.point(i, y);
             }
         }
@@ -234,8 +221,11 @@ pub fn render_sprite(
     // Normalizar β a [-PI, PI)
     beta = (beta + PI).rem_euclid(2.0 * PI) - PI;
 
-    // Sprite detrás del jugador
-    if beta.abs() > PI / 2.0 {
+    // Calcular el radio angular del sprite para culling
+    let sprite_angular_half_width = (SPRITE_SIZE / 2.0 / distance).atan();
+
+    // Descartar si el sprite está completamente fuera del FOV
+    if beta - sprite_angular_half_width > FOV / 2.0 || beta + sprite_angular_half_width < -FOV / 2.0 {
         return;
     }
 
